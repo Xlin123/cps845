@@ -26,3 +26,56 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 export async function signOut(): Promise<void> {
   await fetch(`${BASE}/auth/sign-out`, { method: 'POST', credentials: 'include' })
 }
+
+export type CreateSessionFields = {
+  date: string
+  startTime: string
+  lengthMinutes: number
+  price: number
+  overwriteIds?: number[]
+}
+
+export type SessionCollision = { id: number; start: string; lengthMinutes: number }
+
+export class SessionCollisionError extends Error {
+  canOverwrite: boolean
+  collisions: SessionCollision[]
+
+  constructor(message: string, canOverwrite: boolean, collisions: SessionCollision[]) {
+    super(message)
+    this.canOverwrite = canOverwrite
+    this.collisions = collisions
+  }
+}
+
+export async function createSession(fields: CreateSessionFields): Promise<void> {
+  const response = await fetch(`${BASE}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      date: fields.date,
+      start_time: fields.startTime,
+      length_minutes: fields.lengthMinutes,
+      price: fields.price,
+      overwrite_ids: fields.overwriteIds,
+    }),
+  })
+  if (response.status === 409) {
+    const body = await response.json()
+    const detail = body.detail
+    throw new SessionCollisionError(
+      detail.detail,
+      detail.can_overwrite,
+      detail.collisions.map((c: { id: number; start: string; length_minutes: number }) => ({
+        id: c.id,
+        start: c.start,
+        lengthMinutes: c.length_minutes,
+      })),
+    )
+  }
+  if (!response.ok) {
+    const body = await response.json()
+    throw new Error(body.detail ?? 'Could not create the session')
+  }
+}

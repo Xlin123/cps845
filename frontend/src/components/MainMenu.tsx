@@ -1,9 +1,21 @@
-type Props = { onSignOut: () => void }
+import { useState } from 'react'
+import CreateSession from './CreateSession'
 
-function MainMenu({ onSignOut }: Props) {
+type Props = { role: string; onSignOut: () => void }
+
+function MainMenu({ role, onSignOut }: Props) {
+  const [creatingSession, setCreatingSession] = useState(false)
+
+  if (creatingSession) {
+    return <CreateSession onDone={() => setCreatingSession(false)} />
+  }
+
   return (
     <section>
       <h2>Main menu</h2>
+      {role === 'coach' && (
+        <button onClick={() => setCreatingSession(true)}>Create Session</button>
+      )}
       <button onClick={onSignOut}>Sign out</button>
     </section>
   )
