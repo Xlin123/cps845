@@ -2,6 +2,9 @@
 
 from datetime import UTC, datetime
 from typing import Protocol
+from zoneinfo import ZoneInfo
+
+CLUB_TIMEZONE = ZoneInfo("America/Toronto")
 
 
 class Clock(Protocol):

@@ -26,7 +26,7 @@ function App() {
       ) : session.landing === 'club_finances' ? (
         <ClubFinances onSignOut={handleSignOut} />
       ) : (
-        <MainMenu onSignOut={handleSignOut} />
+        <MainMenu role={session.role} onSignOut={handleSignOut} />
       )}
     </main>
   )
