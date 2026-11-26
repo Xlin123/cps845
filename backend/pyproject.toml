@@ -22,8 +22,14 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]
+
 [tool.pytest.ini_options]
-testpaths = ["app/tests"]
+testpaths = ["app/tests", "tests"]
+markers = [
+    "scenario(title): binds this test to the Gherkin scenario with this title",
+]
 
 [tool.uv]
 package = false
