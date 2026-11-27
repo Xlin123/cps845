@@ -12,9 +12,13 @@ from app.models import Profile, Role
 from app.sessions import (
     Collision,
     CollisionChangedError,
+    DeleteRejectedError,
+    DeleteTooManyError,
     SessionValidationError,
     as_aware,
     create_session,
+    delete_sessions,
+    list_not_started,
     to_utc_start,
     validate_length,
     validate_price_cents,
@@ -31,6 +35,10 @@ class CreateSessionRequest(BaseModel):
     length_minutes: int = 60
     price: float
     overwrite_ids: list[int] | None = None
+
+
+class DeleteSessionsRequest(BaseModel):
+    session_ids: list[int]
 
 
 class SessionResponse(BaseModel):
@@ -74,6 +82,54 @@ def _collision_response(collisions: list[Collision], *, changed: bool) -> Collis
             for c in collisions
         ],
     )
+
+
+def _delete_rejected_detail(exc: DeleteRejectedError) -> dict:
+    reasons = []
+    if exc.started:
+        labels = ", ".join(_local_label(c.start) for c in exc.started)
+        reasons.append(f"already started: {labels}")
+    if exc.missing_ids:
+        reasons.append(f"no longer exists: {', '.join(str(i) for i in exc.missing_ids)}")
+    return {
+        "detail": "Nothing was deleted; " + "; ".join(reasons),
+        "missing_ids": exc.missing_ids,
+        "started": [{"id": c.id, "start": c.start.isoformat()} for c in exc.started],
+    }
+
+
+@router.get("", response_model=list[SessionResponse])
+def list_upcoming(
+    coach: Profile = Depends(require_coach),
+    db: DbSession = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+) -> list[SessionResponse]:
+    sessions = list_not_started(db, now=clock.now())
+    return [
+        SessionResponse(
+            id=s.id,
+            start=as_aware(s.start).isoformat(),
+            length_minutes=s.length_minutes,
+            price=round(s.price_cents / 100, 2),
+        )
+        for s in sessions
+    ]
+
+
+@router.delete("", status_code=204)
+def delete(
+    body: DeleteSessionsRequest,
+    coach: Profile = Depends(require_coach),
+    db: DbSession = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+) -> None:
+    try:
+        delete_sessions(db, session_ids=body.session_ids, deleted_by=coach.id, clock=clock)
+    except DeleteTooManyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DeleteRejectedError as exc:
+        raise HTTPException(status_code=409, detail=_delete_rejected_detail(exc)) from exc
+    db.commit()
 
 
 @router.post("", response_model=SessionResponse, status_code=201)

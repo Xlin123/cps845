@@ -1,7 +1,7 @@
 """Session bounds, collision and deletion rules.
 
-Shared by the Create Session endpoint and (later) Session Deleted, so both
-go through the same all-or-nothing delete and the same collision check.
+Shared by the Create Session and Session Deleted endpoints, so both go
+through the same all-or-nothing delete and the same collision check.
 """
 
 from dataclasses import dataclass
@@ -39,6 +39,15 @@ class CollisionChangedError(ValueError):
 
 class DeleteRejectedError(ValueError):
     """A session in the requested delete has started or no longer exists."""
+
+    def __init__(self, *, missing_ids: list[int], started: list["Collision"]) -> None:
+        super().__init__("Some selected sessions can no longer be deleted")
+        self.missing_ids = missing_ids
+        self.started = started
+
+
+class DeleteTooManyError(ValueError):
+    """A delete requested more than MAX_SESSIONS_PER_DELETE sessions."""
 
 
 def to_utc_start(on: date, at: time) -> datetime:
@@ -98,6 +107,13 @@ def find_collisions(
     return collisions
 
 
+def list_not_started(db: DbSession, *, now: datetime) -> list[ClassSession]:
+    """Sessions that have not yet started, for the Delete Session table."""
+    sessions = [s for s in db.query(ClassSession).all() if as_aware(s.start) > now]
+    sessions.sort(key=lambda s: as_aware(s.start))
+    return sessions
+
+
 def delete_sessions(
     db: DbSession, *, session_ids: list[int], deleted_by: int, clock: Clock
 ) -> None:
@@ -107,17 +123,21 @@ def delete_sessions(
     session, or queues a deleted-notice if none was pending.
     """
     if len(session_ids) > MAX_SESSIONS_PER_DELETE:
-        raise DeleteRejectedError(f"At most {MAX_SESSIONS_PER_DELETE} sessions per delete")
+        raise DeleteTooManyError(f"Delete at most {MAX_SESSIONS_PER_DELETE} sessions at a time")
 
     now = clock.now()
     sessions = db.query(ClassSession).filter(ClassSession.id.in_(session_ids)).all()
     found_ids = {s.id for s in sessions}
-    missing = set(session_ids) - found_ids
-    if missing:
-        raise DeleteRejectedError(f"No longer exists: {sorted(missing)}")
-    started = [s.id for s in sessions if as_aware(s.start) <= now]
-    if started:
-        raise DeleteRejectedError(f"Already started: {sorted(started)}")
+    missing_ids = sorted(set(session_ids) - found_ids)
+    started = [
+        Collision(
+            id=s.id, start=as_aware(s.start), length_minutes=s.length_minutes, in_progress=True
+        )
+        for s in sessions
+        if as_aware(s.start) <= now
+    ]
+    if missing_ids or started:
+        raise DeleteRejectedError(missing_ids=missing_ids, started=started)
 
     for session in sessions:
         pending_created = (
