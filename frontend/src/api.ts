@@ -79,3 +79,31 @@ export async function createSession(fields: CreateSessionFields): Promise<void> 
     throw new Error(body.detail ?? 'Could not create the session')
   }
 }
+
+export type UpcomingSession = { id: number; start: string; lengthMinutes: number; price: number }
+
+export async function fetchUpcomingSessions(): Promise<UpcomingSession[]> {
+  const response = await fetch(`${BASE}/sessions`, { credentials: 'include' })
+  if (!response.ok) throw new Error('Could not load sessions')
+  const body = await response.json()
+  return body.map((s: { id: number; start: string; length_minutes: number; price: number }) => ({
+    id: s.id,
+    start: s.start,
+    lengthMinutes: s.length_minutes,
+    price: s.price,
+  }))
+}
+
+export async function deleteSessions(sessionIds: number[]): Promise<void> {
+  const response = await fetch(`${BASE}/sessions`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ session_ids: sessionIds }),
+  })
+  if (!response.ok) {
+    const body = await response.json()
+    const detail = typeof body.detail === 'string' ? body.detail : body.detail?.detail
+    throw new Error(detail ?? 'Could not delete the sessions')
+  }
+}
