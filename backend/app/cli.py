@@ -29,6 +29,7 @@ def create_treasurer(db: Session, name: str, email: str, password: str, now: dat
         password_hash=hash_password(password),
         role=Role.treasurer,
         confirmed_at=now,
+        created_at=now,
     )
     db.add(profile)
     db.commit()
