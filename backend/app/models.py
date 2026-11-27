@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -79,6 +79,22 @@ class SessionNotice(Base):
     start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     length_minutes: Mapped[int] = mapped_column(Integer)
     price_cents: Mapped[int] = mapped_column(Integer)
+
+
+class CheckIn(Base):
+    """A member's check-in to the session in progress."""
+
+    __tablename__ = "check_ins"
+    __table_args__ = (
+        UniqueConstraint("profile_id", "session_id", name="uq_check_ins_profile_session"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    checked_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    price_cents: Mapped[int] = mapped_column(Integer)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SessionDeletion(Base):

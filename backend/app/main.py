@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
 from app.routers.auth import router as auth_router
+from app.routers.check_ins import router as check_ins_router
 from app.routers.sessions import router as sessions_router
 
 FRONTEND_DIST = "frontend_dist"
@@ -21,6 +22,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="CM club API", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(sessions_router)
+app.include_router(check_ins_router)
 
 
 @app.get("/api/health")

@@ -79,3 +79,21 @@ export async function createSession(fields: CreateSessionFields): Promise<void> 
     throw new Error(body.detail ?? 'Could not create the session')
   }
 }
+
+export async function fetchSessionsAttended(): Promise<number> {
+  const response = await fetch(`${BASE}/check-ins/me`, { credentials: 'include' })
+  if (!response.ok) throw new Error('Failed to load sessions attended')
+  const body = await response.json()
+  return body.sessions_attended
+}
+
+export type CheckInResult = { price: number; sessionsAttended: number }
+
+export async function checkIn(): Promise<CheckInResult> {
+  const response = await fetch(`${BASE}/check-ins`, { method: 'POST', credentials: 'include' })
+  const body = await response.json()
+  if (!response.ok) {
+    throw new Error(body.detail ?? 'Could not check in')
+  }
+  return { price: body.price, sessionsAttended: body.sessions_attended }
+}
